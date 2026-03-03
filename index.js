@@ -1,18 +1,51 @@
 const express = require("express");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const cors = require('cors')
+const admin = require('firebase-admin')
+const serviceAccount = require("./canvasly-firebase-admin-key.json")
 require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 
+// firebase initialization: 
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+})
+
 //middlewares
 app.use(cors())
 app.use(express.json()) 
 
+
+// custom middlewares 
+const verifyFirebaseToken = async(req, res, next) => {
+const authorization = req.headers.authorization;
+
+if(!authorization){
+    return res.status(401).send({message: "Unauthorized access"})
+}
+const token = authorization.split(' ')[1]
+if(!token) {
+    return res.status(401).send({message: "Unauthorized access"})
+
+}
+try {
+    const decodedUser = await admin.auth().verifyIdToken(token)
+    req.user = decodedUser;
+    console.log(decodedUser);
+    next();
+} catch (error) {
+    return res.status(401).send({ message: 'Invalid token' });
+}
+
+
+}
+
 app.get("/", (req, res) => {
   res.send("Server is running...");
 });
+
 
 // mongodb uri
 const user = process.env.DB_USER;
@@ -50,8 +83,14 @@ async function run() {
     })
 
     //post operations:
-    app.post("/artworks", async(req, res) => {
+    app.post("/artworks", verifyFirebaseToken , async(req, res) => {
         const artworkData = req.body;
+        const tokenEmail = req.user.email;
+        const {user_email} = artworkData;
+        if(tokenEmail !== user_email) {
+            return res.status(403).send({message: "Forbidden Access"})
+        }
+        
         const result = await artsCollection.insertOne(artworkData)
         res.send(result)
     })
