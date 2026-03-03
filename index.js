@@ -8,6 +8,7 @@ const port = process.env.PORT || 5000;
 
 //middlewares
 app.use(cors())
+app.use(express.json()) 
 
 app.get("/", (req, res) => {
   res.send("Server is running...");
@@ -41,13 +42,19 @@ async function run() {
 
     //get operations:
     app.get("/featured-artworks", async (req, res) => {
-        const projectFields = {image_url: 1, title: 1, category: 1, user_name: 1}
         const sortFields = { created_at: -1}
-        const cursor = artsCollection.find().project(projectFields).sort(sortFields).limit(6);
+        const projectFields = {image_url: 1, title: 1, category: 1, user_name: 1}
+        const cursor = artsCollection.find().sort(sortFields).project(projectFields).limit(6);
         const result = await cursor.toArray();
         res.send(result)
     })
 
+    //post operations:
+    app.post("/artworks", async(req, res) => {
+        const artworkData = req.body;
+        const result = await artsCollection.insertOne(artworkData)
+        res.send(result)
+    })
 
 
 
