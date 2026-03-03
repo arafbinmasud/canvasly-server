@@ -1,52 +1,61 @@
-const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
-require('dotenv').config()
-
-
+const express = require("express");
+const { MongoClient, ServerApiVersion } = require("mongodb");
+const cors = require('cors')
+require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 
+//middlewares
+app.use(cors())
 
 app.get("/", (req, res) => {
-    res.send("Server is running...")
-})
+  res.send("Server is running...");
+});
 
-// mongodb uri 
+// mongodb uri
 const user = process.env.DB_USER;
 const password = process.env.DB_PASSWORD;
 console.log(user, password);
 
 const uri = `mongodb+srv://${user}:${password}@cluster0.ci4q50w.mongodb.net/?appName=Cluster0`;
 
-//mongo client 
+//mongo client
 const client = new MongoClient(uri, {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true
-    }
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
 });
 
-
-// mongodb function 
+// mongodb function
 async function run() {
-    try {
-        await client.connect();
-        await client.db('admin').command({ping:1});
-        console.log('connected to mongodb');
-        
-    }
-    finally{
+  try {
+    await client.connect();
+    await client.db("admin").command({ ping: 1 });
+    console.log("connected to mongodb");
+    const db = client.db("canvasly-db");
+    const artsCollection = db.collection("artworks");
 
-    }
+
+    //get operations:
+    app.get("/featured-artworks", async (req, res) => {
+        const projectFields = {image_url: 1, title: 1, category: 1, user_name: 1}
+        const sortFields = { created_at: -1}
+        const cursor = artsCollection.find().project(projectFields).sort(sortFields).limit(6);
+        const result = await cursor.toArray();
+        res.send(result)
+    })
+
+
+
+
+  } finally {
+  }
 }
 run().catch(console.dir);
 
-
-
-
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
-    
-})
+  console.log(`Example app listening on port ${port}`);
+});
