@@ -65,6 +65,7 @@ async function run() {
     console.log("connected to mongodb");
     const db = client.db("canvasly-db");
     const artsCollection = db.collection("artworks");
+    const favoritesCollection = db.collection("favorite_artworks");
 
     //get operations:
     app.get("/featured-artworks", async (req, res) => {
@@ -103,7 +104,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/artwork/:id", async (req, res) => {
+    app.get("/artwork/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await artsCollection.findOne(query);
@@ -114,6 +115,19 @@ async function run() {
       const { email } = req.params;
       const query = { artist_email: email };
       const result = await artsCollection.countDocuments(query);
+      res.send(result);
+    });
+
+    app.get("/my-artworks", verifyFirebaseToken, async (req, res) => {
+      const { email } = req.query;
+      const tokenEmail = req.user.email;
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      const query = { artist_email: email };
+      const sortedField = { created_at: -1 };
+      const cursor = artsCollection.find(query).sort(sortedField);
+      const result = await cursor.toArray();
       res.send(result);
     });
 
@@ -131,6 +145,25 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/favorites", verifyFirebaseToken, async (req, res) => {
+      const favoriteData = req.body;
+      const user_email = favoriteData.user_email;
+      const tokenEmail = req.user.email;
+      if (user_email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      const query = {
+        artwork_id: favoriteData.artwork_id,
+        user_email: favoriteData.user_email,
+      };
+      const existingDoc = await favoritesCollection.findOne(query);
+      if (existingDoc) {
+        return res.status(400).send({ message: "Already in favorites" });
+      }
+      const result = await favoritesCollection.insertOne(favoriteData);
+      res.send(result);
+    });
+
     //patch operations:
     app.patch("/likes-count/:id", verifyFirebaseToken, async (req, res) => {
       const { id } = req.params;
@@ -142,6 +175,29 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const update = { $inc: { likes: 1 } };
       const result = await artsCollection.updateOne(query, update);
+      res.send(result);
+    });
+
+    //delete operations:
+    app.delete("/all-artworks/:id", verifyFirebaseToken, async (req, res) => {
+      const { id } = req.params;
+      const tokenEmail = req.user.email;
+
+      const query = { _id: new ObjectId(id), artist_email: tokenEmail };
+      const result = await artsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //put operations
+    app.put("/update-art/:id", verifyFirebaseToken, async (req, res) => {
+      const tokenEmail = req.user.email;
+      const { id } = req.params;
+      const updatedData = req.body;
+      const query = { _id: new ObjectId(id), artist_email: tokenEmail };
+      const updateDoc = {
+        $set: { ...updatedData },
+      };
+      const result = await artsCollection.updateOne(query, updateDoc);
       res.send(result);
     });
   } finally {
