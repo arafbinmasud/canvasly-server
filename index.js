@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const serviceAccount = require("./canvasly-firebase-admin-key.json");
@@ -73,8 +73,8 @@ async function run() {
         image_url: 1,
         title: 1,
         category: 1,
-        user_name: 1,
-        likes: 1
+        artist_name: 1,
+        likes: 1,
       };
       const cursor = artsCollection
         .find()
@@ -85,34 +85,63 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-artworks", async(req, res) => {
-      const {search} = req.query;
-      const {category} = req.query;
-      const query = {visibility: "Public"}
-      if(category && category !== 'All Works'){
+    app.get("/all-artworks", async (req, res) => {
+      const { search } = req.query;
+      const { category } = req.query;
+      const query = { visibility: "Public" };
+      if (category && category !== "All Works") {
         query.category = category;
       }
-      if(search){
+      if (search) {
         query.$or = [
-          {title: {$regex: search, $options: 'i'}},
-          {user_name: {$regex: search, $options: 'i'}}
-        ]
+          { title: { $regex: search, $options: "i" } },
+          { user_name: { $regex: search, $options: "i" } },
+        ];
       }
       const cursor = artsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
-    })
+    });
+
+    app.get("/artwork/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await artsCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.get("/artworks-count/:email", async (req, res) => {
+      const { email } = req.params;
+      const query = { artist_email: email };
+      const result = await artsCollection.countDocuments(query);
+      res.send(result);
+    });
 
     //post operations:
     app.post("/artworks", verifyFirebaseToken, async (req, res) => {
       const artworkData = req.body;
       const tokenEmail = req.user.email;
-      const { user_email } = artworkData;
-      if (tokenEmail !== user_email) {
+      const { artist_email } = artworkData;
+
+      if (tokenEmail !== artist_email) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
 
       const result = await artsCollection.insertOne(artworkData);
+      res.send(result);
+    });
+
+    //patch operations:
+    app.patch("/likes-count/:id", verifyFirebaseToken, async (req, res) => {
+      const { id } = req.params;
+      const { user_email } = req.body;
+      const tokenEmail = req.user.email;
+      if (user_email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      const query = { _id: new ObjectId(id) };
+      const update = { $inc: { likes: 1 } };
+      const result = await artsCollection.updateOne(query, update);
       res.send(result);
     });
   } finally {
