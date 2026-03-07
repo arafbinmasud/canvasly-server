@@ -173,6 +173,17 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/users/:email", verifyFirebaseToken, async (req, res) => {
+      const { email } = req.params;
+      const tokenEmail = req.user.email;
+      if (email !== tokenEmail) {
+        res.status(403).send({ message: "Forbidden access" });
+      }
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
     //post operations:
     app.post("/artworks", verifyFirebaseToken, async (req, res) => {
       const artworkData = req.body;
@@ -208,14 +219,18 @@ async function run() {
 
     app.post("/users", async (req, res) => {
       const user = req.body;
-      const query = {email: user.email};
+      const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
-      if(existingUser) {
-        return res.send({message: 'User Already Exists'})
+      if (existingUser) {
+        return res.send({ message: "User Already Exists" });
       }
-      const result = await usersCollection.insertOne(user);
-      res.send(result)
-    })
+      const newUser = {
+        ...user,
+        bio: "Love to play with colors and abstract shapes. Creating art is my meditation.",
+      };
+      const result = await usersCollection.insertOne(newUser);
+      res.send(result);
+    });
 
     //patch operations:
     app.patch("/likes-count/:id", verifyFirebaseToken, async (req, res) => {
@@ -228,6 +243,23 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const update = { $inc: { likes: 1 } };
       const result = await artsCollection.updateOne(query, update);
+      res.send(result);
+    });
+
+    app.patch("/users/update-bio", verifyFirebaseToken, async (req, res) => {
+      const {email, bio} = req.body;
+      
+      const tokenEmail = req.user.email;
+      if (email !== tokenEmail) {
+        res.status(403).send({ message: "forbidden access" });
+      }
+      const query = {email: email}
+      const updateDoc = { 
+        $set: {
+          bio: bio
+        }
+      }
+      const result = await usersCollection.updateOne(query, updateDoc)
       res.send(result);
     });
 
