@@ -66,6 +66,7 @@ async function run() {
     const db = client.db("canvasly-db");
     const artsCollection = db.collection("artworks");
     const favoritesCollection = db.collection("favorite_artworks");
+    const usersCollection = db.collection("users");
 
     //get operations:
     app.get("/featured-artworks", async (req, res) => {
@@ -204,6 +205,17 @@ async function run() {
       const result = await favoritesCollection.insertOne(favoriteData);
       res.send(result);
     });
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = {email: user.email};
+      const existingUser = await usersCollection.findOne(query);
+      if(existingUser) {
+        return res.send({message: 'User Already Exists'})
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result)
+    })
 
     //patch operations:
     app.patch("/likes-count/:id", verifyFirebaseToken, async (req, res) => {
