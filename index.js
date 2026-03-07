@@ -131,6 +131,47 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/my-favorites", verifyFirebaseToken, async (req, res) => {
+      const { email } = req.query;
+      const tokenEmail = req.user.email;
+
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      //step 1: favorites colllection theika user er sob docs aina array banamu
+      const favoriteArts = await favoritesCollection
+        .find({ user_email: email })
+        .sort({ added_at: -1 })
+        .toArray();
+
+      //step 2: jodi kono favorite na thake taile ekta khali array frontend a pathay dimu..
+      if (favoriteArts.length === 0) {
+        return res.send([]);
+      }
+
+      //step 3: user er favorite arts er array te map chalaiya arekta array banamu jekhane favorite list er artwork_id k mongodb er objectId te convert kormu ar ki..
+      const favoriteArtIds = favoriteArts.map(
+        (art) => new ObjectId(art.artwork_id),
+      );
+
+      //step 4: ekhoon ei j array ta pailam objectid er, eta diye main artscollection a query chalaiya jei jei docs er _id er sathe ei array er id gula mile segula ber korbo, er jonno $in lagbe , array diye query korte
+
+      const fetchedArts = await artsCollection
+        .find({ _id: { $in: favoriteArtIds } })
+        .toArray();
+
+      //step 5: sorting--> ekhon favoritedArtIds jeta kina sorted array sei array er reference a ei fetchedArts array ta sajay nibo:
+
+      const result = favoriteArtIds
+        .map((id) =>
+          fetchedArts.find((art) => art._id.toString() === id.toString()),
+        )
+        .filter((art) => art !== undefined); //jate artist kono art delete koira dile undefined na ashe
+
+      res.send(result);
+    });
+
     //post operations:
     app.post("/artworks", verifyFirebaseToken, async (req, res) => {
       const artworkData = req.body;
@@ -185,6 +226,14 @@ async function run() {
 
       const query = { _id: new ObjectId(id), artist_email: tokenEmail };
       const result = await artsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.delete("/favorites/:id", verifyFirebaseToken, async (req, res) => {
+      const { id } = req.params;
+      const tokenEmail = req.user.email;
+      const query = { artwork_id: id, user_email: tokenEmail };
+      const result = await favoritesCollection.deleteOne(query);
       res.send(result);
     });
 
