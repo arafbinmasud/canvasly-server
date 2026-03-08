@@ -67,6 +67,7 @@ async function run() {
     const artsCollection = db.collection("artworks");
     const favoritesCollection = db.collection("favorite_artworks");
     const usersCollection = db.collection("users");
+    const followsCollection = db.collection("follows");
 
     //get operations:
     app.get("/featured-artworks", async (req, res) => {
@@ -184,6 +185,15 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/is-following", async (req, res) => {
+      const { artist_email, follower_email } = req.query;
+      const result = await followsCollection.findOne({
+        artist_email,
+        follower_email,
+      });
+      res.send(!!result);
+    });
+
     //post operations:
     app.post("/artworks", verifyFirebaseToken, async (req, res) => {
       const artworkData = req.body;
@@ -232,6 +242,21 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/follow-toggle", async (req, res) => {
+      const { artist_email, follower_email } = req.body;
+      const query = { artist_email, follower_email };
+
+      const existing = await followsCollection.findOne(query);
+
+      if (existing) {
+        const result = await followsCollection.deleteOne(query);
+        res.send({ status: "unfollowed", result });
+      } else {
+        const result = await followsCollection.insertOne(query);
+        res.send({ status: "followed", result });
+      }
+    });
+
     //patch operations:
     app.patch("/likes-count/:id", verifyFirebaseToken, async (req, res) => {
       const { id } = req.params;
@@ -247,19 +272,19 @@ async function run() {
     });
 
     app.patch("/users/update-bio", verifyFirebaseToken, async (req, res) => {
-      const {email, bio} = req.body;
-      
+      const { email, bio } = req.body;
+
       const tokenEmail = req.user.email;
       if (email !== tokenEmail) {
         res.status(403).send({ message: "forbidden access" });
       }
-      const query = {email: email}
-      const updateDoc = { 
+      const query = { email: email };
+      const updateDoc = {
         $set: {
-          bio: bio
-        }
-      }
-      const result = await usersCollection.updateOne(query, updateDoc)
+          bio: bio,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
       res.send(result);
     });
 
