@@ -2,8 +2,10 @@ const express = require("express");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
 const admin = require("firebase-admin");
-const serviceAccount = require("./canvasly-firebase-admin-key.json");
 require("dotenv").config();
+
+const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString("utf8");
+const serviceAccount = JSON.parse(decoded);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -44,7 +46,6 @@ app.get("/", (req, res) => {
 // mongodb uri
 const user = process.env.DB_USER;
 const password = process.env.DB_PASSWORD;
-console.log(user, password);
 
 const uri = `mongodb+srv://${user}:${password}@cluster0.ci4q50w.mongodb.net/?appName=Cluster0`;
 
@@ -60,8 +61,8 @@ const client = new MongoClient(uri, {
 // mongodb function
 async function run() {
   try {
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
+    // await client.connect();
+    // await client.db("admin").command({ ping: 1 });
     console.log("connected to mongodb");
     const db = client.db("canvasly-db");
     const artsCollection = db.collection("artworks");
@@ -98,7 +99,7 @@ async function run() {
       if (search) {
         query.$or = [
           { title: { $regex: search, $options: "i" } },
-          { user_name: { $regex: search, $options: "i" } },
+          { artist_name: { $regex: search, $options: "i" } },
         ];
       }
       const cursor = artsCollection.find(query);
@@ -378,3 +379,4 @@ run().catch(console.dir);
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
+module.exports = app;
