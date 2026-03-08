@@ -194,6 +194,53 @@ async function run() {
       res.send(!!result);
     });
 
+    app.get("/artist-works", verifyFirebaseToken, async (req, res) => {
+      const { artist_email } = req.query;
+      const { user_email } = req.query;
+      const tokenEmail = req.user.email;
+      if (user_email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      const result = await artsCollection
+        .find({ artist_email })
+        .sort({ created_at: -1 })
+        .toArray();
+      res.send(result);
+    });
+
+    app.get("/followers", async (req, res) => {
+      const { artist_email } = req.query;
+      const followers = await followsCollection
+        .find({ artist_email })
+        .toArray();
+
+      if (followers.length === 0) {
+        return res.send([]);
+      }
+
+      const followersEmails = followers.map(
+        (follower) => follower.follower_email,
+      );
+
+      const query = { email: { $in: followersEmails } };
+      const projectFields = {
+        name: 1,
+        photo: 1,
+      };
+      const result = await usersCollection
+        .find(query)
+        .project(projectFields)
+        .toArray();
+
+      res.send(result);
+    });
+
+    app.get("/artists/:email", async (req, res) => {
+      const { email } = req.params;
+      const result = await usersCollection.findOne({ email });
+      res.send(result);
+    });
+
     //post operations:
     app.post("/artworks", verifyFirebaseToken, async (req, res) => {
       const artworkData = req.body;
@@ -242,8 +289,13 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/follow-toggle", async (req, res) => {
+    app.post("/follow-toggle", verifyFirebaseToken, async (req, res) => {
       const { artist_email, follower_email } = req.body;
+      const tokenEmail = req.user.email;
+
+      if (follower_email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
       const query = { artist_email, follower_email };
 
       const existing = await followsCollection.findOne(query);
